@@ -4,21 +4,40 @@ import copy
 import sys
 import traceback
 
-from util import Vertex
-from util import Edge
-from util import Graph
+import time
+import signal
+import errno
+
+from util import *
+
 
 # Removes the given vertex v from the graph, as well as the edges attached to it.
 # Removes all isolated vertices from the graph as well.
 def Percolate(graph, v):
     # Get attached edges to this vertex, remove them.
-    for e in graph.IncidentEdges(v):
+    for e in IncidentEdges(graph, v):
         graph.E.remove(e)
     # Remove this vertex.
     graph.V.remove(v)
     # Remove all isolated vertices.
-    to_remove = {u for u in graph.V if len(graph.IncidentEdges(u)) == 0}
+    to_remove = {u for u in graph.V if len(IncidentEdges(graph, u)) == 0}
     graph.V.difference_update(to_remove)
+
+class TimeoutError(Exception):
+    pass
+
+class Timeout:
+    def __init__(self, seconds=0.5, error_message="Timeout of {0} seconds hit"):
+        self.seconds = seconds
+        self.error_message = error_message.format(seconds)
+    def handle_timeout(self, signum, frame):
+        raise TimeoutError(self.error_message)
+    def __enter__(self):
+        signal.signal(signal.SIGALRM, self.handle_timeout)
+        signal.setitimer(signal.ITIMER_REAL, self.seconds)
+    def __exit__(self, type, value, traceback):
+        signal.alarm(0)
+
 
 # This is the main game loop.
 def PlayGraph(s, t, graph):
@@ -29,13 +48,20 @@ def PlayGraph(s, t, graph):
     while any(v.color == -1 for v in graph.V):
         # First, try to just *run* the player's code to get their vertex.
         try:
-            chosen_vertex = players[active_player].ChooseVertexToColor(copy.copy(graph), active_player)
+            with Timeout():
+                chosen_vertex = players[active_player].ChooseVertexToColor(copy.deepcopy(graph), active_player)
+
+        # If user code does not return within appropriate timeout, select random action.
+        except TimeoutError as e:
+            print(e)
+            traceback.print_exc(file=sys.stdout)
+            chosen_vertex = RandomPlayer.ChooseVertexToColor(copy.deepcopy(graph), active_player)
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
             return 1 - active_player
         # Next, check that their output was reasonable.
         try:
-            original_vertex = graph.GetVertex(chosen_vertex.index)
+            original_vertex = GetVertex(graph, chosen_vertex.index)
             if not original_vertex:
                 return 1 - active_player
             if original_vertex.color != -1:
@@ -58,13 +84,20 @@ def PlayGraph(s, t, graph):
     while len([v for v in graph.V if v.color == active_player]) > 0:
         # First, try to just *run* the removal code.
         try:
-            chosen_vertex = players[active_player].ChooseVertexToRemove(copy.copy(graph), active_player)
+            with Timeout():
+                chosen_vertex = players[active_player].ChooseVertexToRemove(copy.deepcopy(graph), active_player)
+
+        # If user code does not return within appropriate timeout, select random action.
+        except TimeoutError as e:
+            print(e)
+            traceback.print_exc(file=sys.stdout)
+            chosen_vertex = RandomPlayer.ChooseVertexToRemove(copy.deepcopy(graph), active_player)
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
             return 1 - active_player
         # Next, check that their output was reasonable.
         try:
-            original_vertex = graph.GetVertex(chosen_vertex.index)
+            original_vertex = GetVertex(graph, chosen_vertex.index)
             if not original_vertex:
                 return 1 - active_player
             if original_vertex.color != active_player:
@@ -133,7 +166,7 @@ if __name__ == "__main__":
     wins = PlayBenchmark(p1, p2, iters)
     print(wins)
     print(
-        "Player 1: {0} Player 2: {1}".format(
+        "[MNI]Red: {0} Player 2: {1}".format(
             1.0 * wins[0] / sum(wins), 1.0 * wins[1] / sum(wins)
         )
     )
