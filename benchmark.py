@@ -123,13 +123,13 @@ class RandomPlayer:
 if __name__ == "__main__":
     # NOTE: we are not creating INSTANCES of these classes, we're defining the players
     # as the class itself. This lets us call the static methods.
-    p1 = RandomPlayer
+    # p1 = RandomPlayer
     # Comment the above line and uncomment the next two if
     # you'd like to test the PercolationPlayer code in this repo.
-    # from percolator import PercolationPlayer
-    # p1 = PercolationPlayer
+    from percolator import PercolationPlayer
+    p1 = PercolationPlayer
     p2 = RandomPlayer
-    iters = 500
+    iters = 200
     wins = PlayBenchmark(p1, p2, iters)
     print(wins)
     print(
