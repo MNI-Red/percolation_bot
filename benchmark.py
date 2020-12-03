@@ -163,6 +163,9 @@ if __name__ == "__main__":
     p1 = PercolationPlayer
     p2 = RandomPlayer
     iters = 200
+
+
+
     wins = PlayBenchmark(p1, p2, iters)
     print(wins)
     print(
