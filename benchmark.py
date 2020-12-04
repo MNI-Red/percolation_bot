@@ -164,8 +164,6 @@ if __name__ == "__main__":
     p2 = RandomPlayer
     iters = 200
 
-
-
     wins = PlayBenchmark(p1, p2, iters)
     print(wins)
     print(

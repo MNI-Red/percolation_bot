@@ -151,48 +151,74 @@ class PercolationPlayer:
 		scores = [PercolationPlayer.remove_heuristic(graph, v, player) for v in graph.V if v.color == player]
 		return sum(scores)
 
-	def MiniMaxWIP(graph_dict, removed_dict, current_graph, player, vertices, depth = 2, maximizing = True):
-		currents_indices = [v.index for v in vertices if v.color == player]
-		
+	def MiniMaxWIP(graph_dict, removed_dict, current_matrix_dict, current_graph, player, vertices, depth = 2, maximizing = True):
+		currents_indices = [v.index for v in vertices if v.color == player if v.index in list(current_matrix_dict.keys())]
+		value = PercolationPlayer.adjacency_graph_value(current_graph, currents_indices, current_matrix_dict)
+
 		if depth == 0 or np.count_nonzero(current_graph) == 0:
-			return PercolationPlayer.adjacency_graph_value(current_graph, currents_indices)
+			return value
 		
-		value = PercolationPlayer.adjacency_graph_value(current_graph, currents_indices)
+		current_key = tuple(tuple(row) for row in current_graph)
 		if maximizing:
 		# value = -1000000
-			for child, removed in PercolationPlayer.AdjacencyNeighbors(current_graph, currents_indices, player):
-				graph_dict[child.tobytes()] = tuple(current_graph)
-				removed_dict[child.tobytes()] = removed
-				value = max(value, PercolationPlayer.MiniMaxWIP(graph_dict, removed_dict, child, abs(1-player), vertices, 
+			for child, child_matrix_index_dict, removed in PercolationPlayer.AdjacencyNeighbors(current_graph, 
+																player, currents_indices, current_matrix_dict):
+				child_key = tuple(tuple(row) for row in child)
+				graph_dict[child_key] = current_key
+				removed_dict[child_key] = removed
+				value = max(value, PercolationPlayer.MiniMaxWIP(graph_dict, removed_dict, child_matrix_index_dict, child, abs(1-player), vertices, 
 										depth-1, not maximizing))
 			return value
 		else: #minimizing player
 		# value = 1000000
-			for child, removed in PercolationPlayer.AdjacencyNeighbors(current_graph, currents_indices, player):
-				graph_dict[child.tobytes()] = current_graph.tobytes()
-				removed_dict[child.tobytes()] = removed
-				value = min(value, PercolationPlayer.MiniMaxWIP(graph_dict, removed_dict, child, abs(1-player), vertices, 
+			for child, child_matrix_index_dict, removed in PercolationPlayer.AdjacencyNeighbors(current_graph, 
+																player, currents_indices, current_matrix_dict):
+				child_key = tuple(tuple(row) for row in child)
+				graph_dict[child_key] = current_key
+				removed_dict[child_key] = removed
+				value = min(value, PercolationPlayer.MiniMaxWIP(graph_dict, removed_dict, child_matrix_index_dict, child, abs(1-player), vertices, 
 										depth-1, not maximizing))
 			return value
 
 	def GraphToAdjacency(graph):
-		n = len(graph.V)
+		indices = [i.index for i in graph.V]
+		n = len(indices)
+		matrix_to_vertex = dict(zip(indices, range(n)))
+		# print(matrix_to_vertex)
 		adjacency = [[0]*n for _ in range(n)]
 		# print(adjacency)
 		for e in graph.E:
-			adjacency[int(e.a.index)][int(e.b.index)] = 1
-			adjacency[int(e.b.index)][int(e.a.index)] = 1
+			a = matrix_to_vertex[e.a.index]
+			b = matrix_to_vertex[e.b.index]
+			adjacency[a][b] = 1
+			adjacency[b][a] = 1
 		# import numpy as np
-		return np.array(adjacency)
+		return adjacency, matrix_to_vertex
 
-	def AdjacencyNeighbors(graph, my_indices, player):
+	def remove_vertex(graph, index, matrix_to_vertex):
+		# n
+		copy = [[j for j in i] for i in graph]
+		index_to_remove = matrix_to_vertex[index]
+		copy[index_to_remove] = ["*"]*len(copy)
+		for x in copy:
+			x[index_to_remove] = "*"
+		# for i in copy:
+		# 	print(i)
+		# print()
+		copy = [[j for j in i if type(j) is int] for i in copy]
+		copy = [i for i in copy if i != []]
+		# for i in copy:
+		# 	print(i)
+		keys = list(matrix_to_vertex.keys())
+		keys.remove(index)
+		matrix_to_vertex = dict(zip(keys, range(len(copy))))
+		return copy, matrix_to_vertex, index
+
+	def AdjacencyNeighbors(graph, player, my_indices, matrix_to_vertex):
 		to_ret = []
-		for i in my_indices:
-			if np.sum(graph[i]) != 0:
-				to_mult = np.ones(len(graph))
-				to_mult[i] = 0 
-				neighbor = np.multiply(np.multiply(graph, to_mult), np.array([to_mult]).T)
-				to_ret.append((neighbor, i))
+
+		for index in my_indices:
+			to_ret.append(PercolationPlayer.remove_vertex(graph, index, matrix_to_vertex))
 		return to_ret
 
 	def adjacency_color_heuristic(graph, v_index, my_indices, uncolored_indices):
@@ -207,11 +233,15 @@ class PercolationPlayer:
 				score += 3
 		return score
 
-	def adjacency_remove_heuristic(graph, v_index, my_indices):
-		neighbors = [i for i in np.flatnonzero(graph[v_index])]
+	def adjacency_remove_heuristic(graph, v_index, my_indices, matrix_to_vertex):
+		# neighbors = [i for i in graph[v_index]]
+		# print(v_index)
+		# print(matrix_to_vertex)
+		index_to_remove = matrix_to_vertex[v_index]
+		neighbor_indices = [i for i, e in enumerate(graph[index_to_remove]) if e != 0]
 		score = 0
 		# print(my_indices)
-		for v in neighbors:
+		for v in neighbor_indices:
 			# print(v, my_indices)
 			# print(v in my_indices)
 			if v in my_indices:
@@ -220,20 +250,27 @@ class PercolationPlayer:
 				score += 4
 		return score
 
-	def adjacency_graph_value(graph, my_indices):
+	def adjacency_graph_value(graph, my_indices, matrix_to_vertex):
 		# print(my_indices)
 		if np.count_nonzero(graph) == 0:
 			return sys.maxsize
-		scores = [PercolationPlayer.adjacency_remove_heuristic(graph, v, my_indices) for v in my_indices]
+		scores = [PercolationPlayer.adjacency_remove_heuristic(graph, v, my_indices, matrix_to_vertex) for v in my_indices]
 		return sum(scores)
 
 	def reconstruct(graph_dict, removed_dict):
 		temp = list(graph_dict.keys())[-1]
 		path = []
 		while graph_dict[temp]:
-			path.append(graph_dict[temp])
+			path.append(removed_dict[temp])
 			temp = graph_dict[temp]
-		print(removed_dict[path[1]])
+		# print(removed_dict[graph_dict[list(removed_dict.keys())[-1]]])
+		if len(path) <= 0:
+			print(graph_dict)
+			print(removed_dict)
+		# print(path)
+		# print(removed_dict[path[-2]])
+		# print([removed_dict[i] for i in path])
+		return path[-1]
 
 	def ChooseVertexToColor(graph, player):
 		# temp_graph = deepcopy(graph)
@@ -246,21 +283,28 @@ class PercolationPlayer:
 
 	def ChooseVertexToRemove(graph, player):
 
-		# potential = sorted([v for v in graph.V if v.color == player], 
-		# 	key = lambda v: PercolationPlayer.remove_heuristic(graph, v, player))
-		# # print(potential)
-		# return potential[-1]
+		if not graph.E:# or len(graph.V) > 30:
+			potential = sorted([v for v in graph.V if v.color == player], 
+				key = lambda v: PercolationPlayer.remove_heuristic(graph, v, player))
+			# print(potential)
+			return potential[-1]
 		
+		if len(graph.V) > 25:
+			depth = 2
+		elif len(graph.V) > 17:
+			depth = 3
+		else:
+			depth = 4
+
 		vertices = graph.V
 		n = len(vertices)
-		graph = PercolationPlayer.GraphToAdjacency(graph)
-		graph_dict = {graph.tobytes():None}
-		removed_dict = {graph.tobytes():None}
-		PercolationPlayer.MiniMaxWIP(graph_dict, removed_dict, graph, player, vertices)
-		# PercolationPlayer.reconstruct(graph_dict, removed_dict)
-
-		# print(graph_dict)
-		print(removed_dict)
+		
+		adjacency_graph, matrix_to_vertex = PercolationPlayer.GraphToAdjacency(graph)
+		graph_key = tuple(tuple(row) for row in adjacency_graph)
+		graph_dict = {graph_key:None}
+		removed_dict = {graph_key:None}
+		PercolationPlayer.MiniMaxWIP(graph_dict, removed_dict, matrix_to_vertex, adjacency_graph, player, vertices, depth)
+		return GetVertex(graph, PercolationPlayer.reconstruct(graph_dict, removed_dict))
 
 # import numpy as np
 # Feel free to put any personal driver code here.
@@ -283,36 +327,53 @@ def main():
 	# PercolationPlayer.RemoveVertex(G_copy, 0)
 	# print("G remove vertex time: " + str(time.time()-start))
 
-	# start = time.time()
-	# adjacency = PercolationPlayer.GraphToAdjacency(G)
-	# print(adjacency)
-	# print()
-	# print("adjacency remove vertex time: " + str(time.time()-start))
-	# byte =  adjacency.tobytes()
-	# print(byte)
-	# y = np.frombuffer(byte, dtype = int).reshape(4,4)
-	# print(y)
-	# for e in G.E:
-	# 	print((e.a.index, e.b.index))
+	adjacency, matrix_to_vertex = PercolationPlayer.GraphToAdjacency(G)
+	print(matrix_to_vertex)
+	print()
+	# PercolationPlayer.remove_vertex(adjacency, c.index, matrix_to_vertex)
+	# print(matrix_to_vertex)
 
-	# adjacency = PercolationPlayer.GraphToAdjacency(G)
-	# print(adjacency)
 	# for i in adjacency:
 	# 	print(i)
-	# my_indices = [v.index for v in G.V if v.color == player]
-	# print(my_indices)
-	# print(2 in my_indices)
+	# print(matrix_to_vertex)
 	
-	# # print(adjacency[0][:])
+	vertices = G.V
+	my_indices = [v.index for v in vertices if v.color == player]
+	print(my_indices, "\n")
 
-	# start = time.time()
-	# neighbors = PercolationPlayer.AdjacencyNeighbors(adjacency, my_indices)
-	# print("adjacency neighbors time: " + str(time.time()-start)) 
+	# print(PercolationPlayer.adjacency_remove_heuristic(adjacency, 2, my_indices))
+	# print(PercolationPlayer.adjacency_remove_heuristic(adjacency, 0, my_indices))
 
+
+	# neighbors = PercolationPlayer.AdjacencyNeighbors(adjacency, player, my_indices, matrix_to_vertex)
+	# for pair in neighbors:
+	# 	for i in pair[0]:
+	# 		print(i)
+	# 	print(pair[1])
+	# 	print("removed: " + str(pair[2]))
+	# 	print()
 	# # print(neighbors)
 	# for i in neighbors:
 	# 	print(i)
 	# 	print()
+	graph_key = tuple(tuple(row) for row in adjacency)
+	graph_dict = {graph_key:None}
+	removed_dict = {graph_key:None}
+	# PercolationPlayer.MiniMaxWIP(graph_dict, removed_dict, matrix_to_vertex, adjacency, player, vertices)
+	print(PercolationPlayer.ChooseVertexToRemove(G, player))
+	# path = []
+	# temp = list(graph_dict.items())[-1][0]
+	# # print(graph_dict)
+	# # print(removed_dict)
+	# while graph_dict[temp]:
+	# 	path.append(temp)
+	# 	temp = graph_dict[temp]
+	# # reversed(path)
+	# path.append(temp)
+	# path = list(reversed(path))
+	# # print()
+	# print(path)
+	# print([removed_dict[i] for i in path])
 
 	# start = time.time()
 	# neighbors = PercolationPlayer.ComputeNeighbors(G, player)
@@ -322,8 +383,12 @@ def main():
 	# 		print(j)
 	# 	print()
 	# print(PercolationPlayer.ChooseVertexToColor(G, player))
-	print(PercolationPlayer.ChooseVertexToRemove(G, player))
-	# PercolationPlayer.RemoveVertex(G, "a")
+	# to_remove = PercolationPlayer.ChooseVertexToRemove(G, player)
+	# # print()
+	# PercolationPlayer.RemoveVertex(G, to_remove)
+	# PercolationPlayer.RemoveVertex(G, 3)
+	# to_remove = PercolationPlayer.ChooseVertexToRemove(G, player)
+	# # PercolationPlayer.RemoveVertex(G, "a")
 	# print(G)
 	# value, graph = PercolationPlayer.MiniMax([G], 2, True, 1)
 	# print(graph)
