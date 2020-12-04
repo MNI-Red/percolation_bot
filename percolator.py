@@ -288,13 +288,15 @@ class PercolationPlayer:
 				key = lambda v: PercolationPlayer.remove_heuristic(graph, v, player))
 			# print(potential)
 			return potential[-1]
-		
-		if len(graph.V) > 25:
+		num_nodes = len(graph.V)
+		if num_nodes > 25:
 			depth = 2
-		elif len(graph.V) > 17:
+		elif num_nodes > 17:
 			depth = 3
-		else:
+		elif num_nodes > 9:
 			depth = 4
+		else:
+			depth = 5
 
 		vertices = graph.V
 		n = len(vertices)
