@@ -1,124 +1,39 @@
 import random
 import time
 import sys
-from copy import deepcopy
+import signal
 from util import Vertex
 from util import Edge
 from util import Graph
-from util import IncidentEdges, GetVertex
-import numpy as np
 
 """
 You'll want to implement a smarter decision logic. This is skeleton code that you should copy and replace in your repository.
 """
 class PercolationPlayer:
 
-	def RemoveVertex(graph, value):
-		v = GetVertex(graph, value)
-		graph.V.remove(v)
-		graph.E.difference_update(IncidentEdges(graph, v))
-		# print(graph)
-		connected_vertices = {e.a for e in graph.E}
-		connected_vertices.update({e.b for e in graph.E})
-		# print(connected_vertices)
-		graph.V =  connected_vertices
-		# print(graph)
-		return graph, v
-	
-	def CountVertices(graph):
-		zeroes, ones = 0, 0
-		for v in graph.V:
-			if v.color == 0:
-				zeroes += 1
-			else:
-				ones += 1
-		return zeroes, ones
+	class Timeout:
+	    def __init__(self, seconds=0.5, error_message="Timeout of {0} seconds hit"):
+	        self.seconds = seconds
+	        self.error_message = error_message.format(seconds)
+	    def handle_timeout(self, signum, frame):
+	        raise TimeoutError(self.error_message)
+	    def __enter__(self):
+	        signal.signal(signal.SIGALRM, self.handle_timeout)
+	        signal.setitimer(signal.ITIMER_REAL, self.seconds)
+	    def __exit__(self, type, value, traceback):
+	        signal.alarm(0)
 
-	def ComputeNeighbors(graph, player):
-		to_ret = []
-		# print(graph.V)
-		for v in graph.V:
-			if v.color == player:
-				to_ret.append(PercolationPlayer.RemoveVertex(deepcopy(graph), v.index))
-		return to_ret
+	def GetVertex(graph, i):
+	    for v in graph.V:
+	        if v.index == i:
+	            return v
+	    return None
 
-	def BFS(graph, player, max_depth = 10, me = True):
-		game_states = {graph:me}
-		depth_per_state = {graph:0}
-		path = {graph:None}
-		frontier = [graph]
-		discovered = set()
-		# print(player)
-		# print(graph)
-		while frontier:
-			current = frontier.pop(0)
-			# print(current.V)
-			my_move = game_states[current]
-			depth = depth_per_state[current]
-			discovered.add(current)
-			# print(current)
-			if not my_move:
-				player = 1 - player
-
-			if not bool(current.V) and not my_move:
-				reconstruct = []
-				while path[current]:
-					reconstruct.append(current)
-					current = path[current]
-				# print(reconstruct[-1].V, graph.V)
-				# print(graph.V.difference(reconstruct[-1].V))
-
-				to_ret = [x for x in [v.index for v in graph.V] if x not in [v.index for v in reconstruct[-1].V]][0]
-				# print(to_ret)
-				# for v in graph.V:
-				# 	if v.index == to_ret
-				return [v for v in graph.V if v.index == to_ret[0]][0]
-
-			if max_depth+1 in depth_per_state.keys():
-				last_row = [i for i in depth_per_state if depth_per_state[i] == max_depth]
-				last_row_counts = [(PercolationPlayer.CountVertices(g)) for g in last_row]
-
-				if player == 0:
-					scores = [score[0]-score[1] for score in last_row_counts]
-				else:
-					scores = [score[1]-score[0] for score in last_row_counts]
-
-				game_to_score = dict(zip(last_row, scores))
-				game_to_score = {k: v for k, v in sorted(game_to_score.items(), key=lambda item: item[1])}
-
-				to_ret = [x for x in [v.index for v in graph.V] if x not in [v.index for v in next(iter(game_to_score))]][0]
-				# print(to_ret)
-				# for v in graph.V:
-				# 	if v.index == to_ret
-				return [v for v in graph.V if v.index == to_ret[0]][0]
-
-			for i in PercolationPlayer.ComputeNeighbors(current, player):
-				if i not in discovered:
-					frontier.append(i)
-					discovered.add(i)
-					path[i] = current
-					game_states[i] = not my_move
-					depth[i] = depth + 1
-		
-	def MiniMax(graph, depth, maximizing, player):
-		if depth == 0 or not graph[-1].V:
-			return (PercolationPlayer.graph_value(graph[-1], player), graph)
-		value = PercolationPlayer.graph_value(graph[-1], player)
-		if maximizing:
-		# value = -1000000
-			for child in PercolationPlayer.ComputeNeighbors(graph[-1], player):
-				value, graph = max((value, graph), PercolationPlayer.MiniMax(graph+[child], depth-1, False, 1-player))
-				# graph.append(max_graph)
-			return value, graph
-		else: #minimizing player
-		# value = 1000000
-			for child in PercolationPlayer.ComputeNeighbors(graph[-1], player):
-				value, graph = min((value, graph), PercolationPlayer.MiniMax(graph+[child], depth-1, True, 1-player))
-				# graph.append(min_graph)
-			return value, graph
+	def IncidentEdges(graph, v):
+	    return [e for e in graph.E if (e.a == v or e.b == v)]
 
 	def color_heuristic(graph, v, player):
-		incident_edges = IncidentEdges(graph, v)
+		incident_edges = PercolationPlayer.IncidentEdges(graph, v)
 		neighbors = [e.a if e.a != v else e.b for e in incident_edges]
 		if not neighbors:
 			return 1 #disconnected vertices are high priority because they can never be removed by opponent
@@ -132,8 +47,8 @@ class PercolationPlayer:
 				score += 3
 		return score
 
-	def remove_heuristic(graph, v, player):
-		incident_edges = IncidentEdges(graph, v)
+	def heuristic_one(graph, v, player):
+		incident_edges = PercolationPlayer.IncidentEdges(graph, v)
 		neighbors = [e.a if e.a != v else e.b for e in incident_edges]
 		if not neighbors:
 			return -1
@@ -145,17 +60,42 @@ class PercolationPlayer:
 				score += 4
 		return score
 
+	def heuristic_two(graph, v, player):
+		incident_edges = PercolationPlayer.IncidentEdges(graph, v)
+		neighbors = [e.a if e.a != v else e.b for e in incident_edges]
+		if not neighbors:
+			return -1
+		score = 0
+		for v in neighbors:
+			if v.color == player:
+				score -= 2
+		return score
+
+	def heuristic_three(graph, v, player):
+		incident_edges = PercolationPlayer.IncidentEdges(graph, v)
+		neighbors = [e.a if e.a != v else e.b for e in incident_edges]
+		if not neighbors:
+			return -1
+		score = 0
+		for v in neighbors:
+			if v.color != player:
+				score += 4
+		return score
+
 	def graph_value(graph, player):
 		if not graph.V:
 			return sys.maxsize
 		scores = [PercolationPlayer.remove_heuristic(graph, v, player) for v in graph.V if v.color == player]
 		return sum(scores)
 
+	def count_nonzero(graph):
+		return sum(sum(col>0 for col in row) for row in graph)
+
 	def MiniMaxWIP(graph_dict, removed_dict, current_matrix_dict, current_graph, player, vertices, depth = 2, maximizing = True):
 		currents_indices = [v.index for v in vertices if v.color == player if v.index in list(current_matrix_dict.keys())]
 		value = PercolationPlayer.adjacency_graph_value(current_graph, currents_indices, current_matrix_dict)
 
-		if depth == 0 or np.count_nonzero(current_graph) == 0:
+		if depth == 0 or PercolationPlayer.count_nonzero(current_graph) == 0:
 			return value
 		
 		current_key = tuple(tuple(row) for row in current_graph)
@@ -252,10 +192,11 @@ class PercolationPlayer:
 
 	def adjacency_graph_value(graph, my_indices, matrix_to_vertex):
 		# print(my_indices)
-		if np.count_nonzero(graph) == 0:
+		if PercolationPlayer.count_nonzero(graph) == 0:
 			return sys.maxsize
-		scores = [PercolationPlayer.adjacency_remove_heuristic(graph, v, my_indices, matrix_to_vertex) for v in my_indices]
-		return sum(scores)
+		potential = sorted([v for v in my_indices], 
+				key = lambda v: PercolationPlayer.adjacency_remove_heuristic(graph, v, my_indices, matrix_to_vertex))
+		return potential[-1]
 
 	def reconstruct(graph_dict, removed_dict):
 		temp = list(graph_dict.keys())[-1]
@@ -282,31 +223,154 @@ class PercolationPlayer:
 		return potential[-1]
 
 	def ChooseVertexToRemove(graph, player):
-
-		if not graph.E:# or len(graph.V) > 30:
-			potential = sorted([v for v in graph.V if v.color == player], 
-				key = lambda v: PercolationPlayer.remove_heuristic(graph, v, player))
-			# print(potential)
-			return potential[-1]
-		num_nodes = len(graph.V)
-		if num_nodes > 25:
-			depth = 2
-		elif num_nodes > 17:
-			depth = 3
-		elif num_nodes > 9:
-			depth = 4
-		else:
-			depth = 5
-
-		vertices = graph.V
-		n = len(vertices)
+		# start = time.time()
 		
-		adjacency_graph, matrix_to_vertex = PercolationPlayer.GraphToAdjacency(graph)
-		graph_key = tuple(tuple(row) for row in adjacency_graph)
-		graph_dict = {graph_key:None}
-		removed_dict = {graph_key:None}
-		PercolationPlayer.MiniMaxWIP(graph_dict, removed_dict, matrix_to_vertex, adjacency_graph, player, vertices, depth)
-		return GetVertex(graph, PercolationPlayer.reconstruct(graph_dict, removed_dict))
+		# if(only_heuristic):
+		potential = sorted([v for v in graph.V if v.color == player], 
+			key = lambda v: PercolationPlayer.heuristic_one(graph, v, player))
+		# print(potential)
+		# vertices = graph.V
+		# my_indices = [v.index for v in vertices if v.color == player]
+		# adjacency_graph, matrix_to_vertex = PercolationPlayer.GraphToAdjacency(graph)
+		# other =[PercolationPlayer.adjacency_remove_heuristic(adjacency_graph, v, my_indices, matrix_to_vertex) for v in my_indices]
+		# print([PercolationPlayer.remove_heuristic(graph, v, player) for v in vertices if v.color == player], other)		
+		return potential[-1]
+
+		# try:
+		# 	with Timeout():
+		# 		if not graph.E:# or len(graph.V) > 30:
+		# 			potential = sorted([v for v in graph.V if v.color == player], 
+		# 				key = lambda v: PercolationPlayer.remove_heuristic(graph, v, player))
+		# 			# print(potential)
+		# 			return potential[-1]
+
+		# 		num_nodes = len(graph.V)
+		# 		if num_nodes > 25:
+		# 			depth = 2
+		# 		elif num_nodes > 15:
+		# 			depth = 3
+		# 		else:
+		# 			depth = 4
+
+		# 		vertices = graph.V
+		# 		n = len(vertices)
+				
+		# 		adjacency_graph, matrix_to_vertex = PercolationPlayer.GraphToAdjacency(graph)
+		# 		graph_key = tuple(tuple(row) for row in adjacency_graph)
+		# 		graph_dict = {graph_key:None}
+		# 		removed_dict = {graph_key:None}
+		# 		PercolationPlayer.MiniMaxWIP(graph_dict, removed_dict, matrix_to_vertex, adjacency_graph, player, vertices, depth)
+		# 		return PercolationPlayer.GetVertex(graph, PercolationPlayer.reconstruct(graph_dict, removed_dict))
+				
+		# except TimeoutError as e:
+		# 	potential = sorted([v for v in graph.V if v.color == player], 
+		# 	key = lambda v: PercolationPlayer.heuristic_one(graph, v, player))
+		# 	return potential[-1]
+
+	# def RemoveVertex(graph, value):
+	# 	v = GetVertex(graph, value)
+	# 	graph.V.remove(v)
+	# 	graph.E.difference_update(IncidentEdges(graph, v))
+	# 	# print(graph)
+	# 	connected_vertices = {e.a for e in graph.E}
+	# 	connected_vertices.update({e.b for e in graph.E})
+	# 	# print(connected_vertices)
+	# 	graph.V =  connected_vertices
+	# 	# print(graph)
+	# 	return graph, v
+	
+	# def CountVertices(graph):
+	# 	zeroes, ones = 0, 0
+	# 	for v in graph.V:
+	# 		if v.color == 0:
+	# 			zeroes += 1
+	# 		else:
+	# 			ones += 1
+	# 	return zeroes, ones
+
+	# def ComputeNeighbors(graph, player):
+	# 	to_ret = []
+	# 	# print(graph.V)
+	# 	for v in graph.V:
+	# 		if v.color == player:
+	# 			to_ret.append(PercolationPlayer.RemoveVertex(deepcopy(graph), v.index))
+	# 	return to_ret
+
+	# def BFS(graph, player, max_depth = 10, me = True):
+	# 	game_states = {graph:me}
+	# 	depth_per_state = {graph:0}
+	# 	path = {graph:None}
+	# 	frontier = [graph]
+	# 	discovered = set()
+	# 	# print(player)
+	# 	# print(graph)
+	# 	while frontier:
+	# 		current = frontier.pop(0)
+	# 		# print(current.V)
+	# 		my_move = game_states[current]
+	# 		depth = depth_per_state[current]
+	# 		discovered.add(current)
+	# 		# print(current)
+	# 		if not my_move:
+	# 			player = 1 - player
+
+	# 		if not bool(current.V) and not my_move:
+	# 			reconstruct = []
+	# 			while path[current]:
+	# 				reconstruct.append(current)
+	# 				current = path[current]
+	# 			# print(reconstruct[-1].V, graph.V)
+	# 			# print(graph.V.difference(reconstruct[-1].V))
+
+	# 			to_ret = [x for x in [v.index for v in graph.V] if x not in [v.index for v in reconstruct[-1].V]][0]
+	# 			# print(to_ret)
+	# 			# for v in graph.V:
+	# 			# 	if v.index == to_ret
+	# 			return [v for v in graph.V if v.index == to_ret[0]][0]
+
+	# 		if max_depth+1 in depth_per_state.keys():
+	# 			last_row = [i for i in depth_per_state if depth_per_state[i] == max_depth]
+	# 			last_row_counts = [(PercolationPlayer.CountVertices(g)) for g in last_row]
+
+	# 			if player == 0:
+	# 				scores = [score[0]-score[1] for score in last_row_counts]
+	# 			else:
+	# 				scores = [score[1]-score[0] for score in last_row_counts]
+
+	# 			game_to_score = dict(zip(last_row, scores))
+	# 			game_to_score = {k: v for k, v in sorted(game_to_score.items(), key=lambda item: item[1])}
+
+	# 			to_ret = [x for x in [v.index for v in graph.V] if x not in [v.index for v in next(iter(game_to_score))]][0]
+	# 			# print(to_ret)
+	# 			# for v in graph.V:
+	# 			# 	if v.index == to_ret
+	# 			return [v for v in graph.V if v.index == to_ret[0]][0]
+
+	# 		for i in PercolationPlayer.ComputeNeighbors(current, player):
+	# 			if i not in discovered:
+	# 				frontier.append(i)
+	# 				discovered.add(i)
+	# 				path[i] = current
+	# 				game_states[i] = not my_move
+	# 				depth[i] = depth + 1
+		
+	# def MiniMax(graph, depth, maximizing, player):
+	# 	if depth == 0 or not graph[-1].V:
+	# 		return (PercolationPlayer.graph_value(graph[-1], player), graph)
+	# 	value = PercolationPlayer.graph_value(graph[-1], player)
+	# 	if maximizing:
+	# 	# value = -1000000
+	# 		for child in PercolationPlayer.ComputeNeighbors(graph[-1], player):
+	# 			value, graph = max((value, graph), PercolationPlayer.MiniMax(graph+[child], depth-1, False, 1-player))
+	# 			# graph.append(max_graph)
+	# 		return value, graph
+	# 	else: #minimizing player
+	# 	# value = 1000000
+	# 		for child in PercolationPlayer.ComputeNeighbors(graph[-1], player):
+	# 			value, graph = min((value, graph), PercolationPlayer.MiniMax(graph+[child], depth-1, True, 1-player))
+	# 			# graph.append(min_graph)
+	# 		return value, graph
+
 
 # import numpy as np
 # Feel free to put any personal driver code here.
@@ -343,8 +407,14 @@ def main():
 	my_indices = [v.index for v in vertices if v.color == player]
 	print(my_indices, "\n")
 
-	# print(PercolationPlayer.adjacency_remove_heuristic(adjacency, 2, my_indices))
-	# print(PercolationPlayer.adjacency_remove_heuristic(adjacency, 0, my_indices))
+	print("Remove a:")
+	print(PercolationPlayer.adjacency_remove_heuristic(adjacency, 0, my_indices, matrix_to_vertex))
+	print(PercolationPlayer.remove_heuristic(G, a, player))
+
+	print("\nRemove c:")
+	print(PercolationPlayer.adjacency_remove_heuristic(adjacency, 2, my_indices, matrix_to_vertex))
+	print(PercolationPlayer.remove_heuristic(G, c, player))
+
 
 
 	# neighbors = PercolationPlayer.AdjacencyNeighbors(adjacency, player, my_indices, matrix_to_vertex)
@@ -358,11 +428,11 @@ def main():
 	# for i in neighbors:
 	# 	print(i)
 	# 	print()
-	graph_key = tuple(tuple(row) for row in adjacency)
-	graph_dict = {graph_key:None}
-	removed_dict = {graph_key:None}
+	# graph_key = tuple(tuple(row) for row in adjacency)
+	# graph_dict = {graph_key:None}
+	# removed_dict = {graph_key:None}
 	# PercolationPlayer.MiniMaxWIP(graph_dict, removed_dict, matrix_to_vertex, adjacency, player, vertices)
-	print(PercolationPlayer.ChooseVertexToRemove(G, player))
+	# print(PercolationPlayer.ChooseVertexToRemove(G, player))
 	# path = []
 	# temp = list(graph_dict.items())[-1][0]
 	# # print(graph_dict)

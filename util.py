@@ -27,10 +27,10 @@ class Graph:
     def __repr__(self):
         return "Graph({0}, {1})".format(self.V, self.E)
 
-    def __deepcopy__(self, memo):
-        V = {v.index: Vertex(v.index, v.color) for v in self.V}
-        E = [Edge(V[e.a.index], V[e.b.index]) for e in self.E]
-        return Graph(V.values(), E)
+    # def __deepcopy__(self, memo):
+    #     V = {v.index: Vertex(v.index, v.color) for v in self.V}
+    #     E = [Edge(V[e.a.index], V[e.b.index]) for e in self.E]
+    #     return Graph(V.values(), E)
 
 ### DO NOT RELY ON THESE METHODS IN YOUR CODE! THEY WILL NOT NECESSARILY EXIST! ###
 ### THESE ARE BEING USED FOR DRIVER CODE ONLY ###
