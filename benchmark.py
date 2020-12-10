@@ -93,6 +93,7 @@ def PlayGraph(s, t, graph):
             chosen_vertex = RandomPlayer.ChooseVertexToRemove(copy.deepcopy(graph), active_player)
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
+            exit(0)
             return 1 - active_player
         # Next, check that their output was reasonable.
         try:
@@ -153,6 +154,49 @@ class RandomPlayer:
         return random.choice([v for v in graph.V if v.color == active_player])
 
 
+class HeuristicPlayer:
+    
+    def IncidentEdges(graph, v):
+        return [e for e in graph.E if (e.a == v or e.b == v)]
+
+    def color_heuristic(graph, v, player):
+        incident_edges = HeuristicPlayer.IncidentEdges(graph, v)
+        neighbors = [e.a if e.a != v else e.b for e in incident_edges]
+        if not neighbors:
+            return 1 #disconnected vertices are high priority because they can never be removed by opponent
+        score = 0
+        for v in neighbors:
+            if v.color == -1:
+                score += 1
+            elif v.color == player:
+                score -= 2
+            else:
+                score += 3
+        return score
+
+    def heuristic_one(graph, v, player):
+        incident_edges = HeuristicPlayer.IncidentEdges(graph, v)
+        neighbors = [e.a if e.a != v else e.b for e in incident_edges]
+        if not neighbors:
+            return -1
+        score = 0
+        for v in neighbors:
+            if v.color == player:
+                score -= 2
+            else:
+                score += 4
+        return score
+
+    def ChooseVertexToColor(graph, player):
+        potential = sorted([v for v in graph.V if v.color == -1], 
+            key = lambda v: HeuristicPlayer.color_heuristic(graph, v, player)) 
+        return potential[-1]
+
+    def ChooseVertexToRemove(graph, player):
+        potential = sorted([v for v in graph.V if v.color == player], 
+            key = lambda v: PercolationPlayer.heuristic_one(graph, v, player))
+        return potential[-1]
+
 if __name__ == "__main__":
     # NOTE: we are not creating INSTANCES of these classes, we're defining the players
     # as the class itself. This lets us call the static methods.
@@ -161,18 +205,19 @@ if __name__ == "__main__":
     # you'd like to test the PercolationPlayer code in this repo.
     from percolator import PercolationPlayer
     p1 = PercolationPlayer
-    p2 = RandomPlayer
+    p2 = HeuristicPlayer
     iters = 200
 
     my_wins = []
-    
-    wins = PlayBenchmark(p1, p2, iters)
-    # my_wins.append(1.0 * wins[0] / sum(wins))
-    print(wins)
-    print(
-        "[MNI]Red: {0} Player 2: {1}".format(
-            1.0 * wins[0] / sum(wins), 1.0 * wins[1] / sum(wins)
-        )
-    )
-        
-    # print("Min wr: {0}\nMax wr: {1}\nAvg wr: {2}".format(min(my_wins), max(my_wins), sum(my_wins)/len(my_wins)))
+    for i in range(50):
+        start = time.time()
+        wins = PlayBenchmark(p1, p2, iters)
+        my_wins.append(1.0 * wins[0] / sum(wins))
+    # print(wins)
+    # print(
+    #     "[MNI]Red: {0} Player 2: {1}".format(
+    #         1.0 * wins[0] / sum(wins), 1.0 * wins[1] / sum(wins)
+    #     )
+    # )
+        print("Epoch Time: " + str(time.time()-start))  
+    print("Min wr: {0}\nMax wr: {1}\nAvg wr: {2}".format(min(my_wins), max(my_wins), sum(my_wins)/len(my_wins)))
