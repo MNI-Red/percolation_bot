@@ -205,19 +205,13 @@ if __name__ == "__main__":
     # you'd like to test the PercolationPlayer code in this repo.
     from percolator import PercolationPlayer
     p1 = PercolationPlayer
-    p2 = HeuristicPlayer
+    p2 = RandomPlayer
     iters = 200
 
     my_wins = []
-    for i in range(50):
+    for i in range(5):
         start = time.time()
         wins = PlayBenchmark(p1, p2, iters)
         my_wins.append(1.0 * wins[0] / sum(wins))
-    # print(wins)
-    # print(
-    #     "[MNI]Red: {0} Player 2: {1}".format(
-    #         1.0 * wins[0] / sum(wins), 1.0 * wins[1] / sum(wins)
-    #     )
-    # )
-        print("Epoch Time: " + str(time.time()-start))  
+        print("Epoch Time: " + str(time.time()-start) + " -- " + "[MNI]Red: {0} Player 2: {1}".format(1.0 * wins[0] / sum(wins), 1.0 * wins[1] / sum(wins)))  
     print("Min wr: {0}\nMax wr: {1}\nAvg wr: {2}".format(min(my_wins), max(my_wins), sum(my_wins)/len(my_wins)))
