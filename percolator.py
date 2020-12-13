@@ -42,7 +42,7 @@ class PercolationPlayer:
 			elif v.color == player:
 				score -= 2
 			else:
-				score += 3
+				score += 4
 		return score
 
 	#68.225
@@ -295,7 +295,7 @@ class PercolationPlayer:
 			to_ret[dict_in[key]].append(key)
 		return to_ret
 
-	def reconstructWIP(graph_dict, removed_dict, graph_values, depth):
+	def reconstruct(graph_dict, removed_dict, graph_values, depth):
 		reversed_graph_dict = PercolationPlayer.reverse_dict(graph_dict)
 		temp = list(graph_dict.keys())[0]
 		graph_path = []
@@ -316,25 +316,6 @@ class PercolationPlayer:
 		# print([removed_dict[i] for i in path])
 		return path[1]
 		# return path, graph_path
-
-	def reconstruct(graph_dict, removed_dict):
-		reversed_graph_dict = PercolationPlayer.reverse_dict(graph_dict)
-		temp = list(graph_dict.keys())[-1]
-		graph_path = []
-		path = []
-		while graph_dict[temp]:
-			path.append(removed_dict[temp])
-			graph_path.append(temp)
-			temp = graph_dict[temp]
-		# print(removed_dict[graph_dict[list(removed_dict.keys())[-1]]])
-		# if len(path) <= 0:
-		# 	print(graph_dict)
-		# 	print(removed_dict)
-		# print(path)
-		# print(removed_dict[path[-2]])
-		# print([removed_dict[i] for i in path])
-		# return path[-1]
-		return path, graph_path
 
 	def ChooseVertexToColor(graph, player):
 		# temp_graph = deepcopy(graph)
@@ -385,7 +366,7 @@ class PercolationPlayer:
 				graph_values = {graph_key: None}
 				PercolationPlayer.MiniMaxWIP(graph_dict, removed_dict, graph_values, vertex_to_index, adjacency_graph, player, 
 					vertices, PercolationPlayer.adjacency_heuristic_three, depth)
-				return PercolationPlayer.GetVertex(graph, PercolationPlayer.reconstructWIP(graph_dict, removed_dict, graph_values, depth))
+				return PercolationPlayer.GetVertex(graph, PercolationPlayer.reconstruct(graph_dict, removed_dict, graph_values, depth))
 				
 		except TimeoutError as e:
 			# potential = sorted([v for v in graph.V if v.color == player], 
