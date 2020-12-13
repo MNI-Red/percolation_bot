@@ -357,7 +357,7 @@ class PercolationPlayer:
 		# other =[PercolationPlayer.adjacency_remove_heuristic(adjacency_graph, v, my_indices, vertex_to_index) for v in my_indices]
 		# print([PercolationPlayer.heuristic_one(graph, v, player) for v in vertices if v.color == player], other)
 
-		# return potential[-1]
+		return potential[-1]
 
 		try:
 			with PercolationPlayer.Timeout(seconds = 0.490):
