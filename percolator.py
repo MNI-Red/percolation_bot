@@ -31,32 +31,42 @@ class PercolationPlayer:
 	    return [e for e in graph.E if (e.a == v or e.b == v)]
 
 	def color_heuristic(graph, v, player):
-		incident_edges = PercolationPlayer.IncidentEdges(graph, v)
-		neighbors = [e.a if e.a != v else e.b for e in incident_edges]
-		if not neighbors:
-			return 1 #disconnected vertices are high priority because they can never be removed by opponent
+		vertices = {vert for vert in graph.V}
+		vertices.remove(v)
 		score = 0
-		for v in neighbors:
-			if v.color == -1:
+		for v in vertices:
+			incident_edges = PercolationPlayer.IncidentEdges(graph, v)
+			neighbors = [e.a if e.a != v else e.b for e in incident_edges]
+			if not neighbors:
 				score += 1
-			elif v.color == player:
-				score -= 2
-			else:
-				score += 4
+				break
+			for n in neighbors:
+				if n.color == -1:
+					score += 1
+				elif n.color == player:
+					score += 2
+				else:
+					score -= 4
+
 		return score
 
 	#68.225
 	def heuristic_one(graph, v, player):
-		incident_edges = PercolationPlayer.IncidentEdges(graph, v)
-		neighbors = [e.a if e.a != v else e.b for e in incident_edges]
-		if not neighbors:
-			return -1
+		vertices = {vert for vert in graph.V}
+		vertices.remove(v)
 		score = 0
-		for v in neighbors:
-			if v.color == player:
-				score -= 2
-			else:
-				score += 4
+		for v in vertices:
+			incident_edges = PercolationPlayer.IncidentEdges(graph, v)
+			neighbors = [e.a if e.a != v else e.b for e in incident_edges]
+			if not neighbors:
+				score += 1
+				break
+			for n in neighbors:
+				if n.color == player:
+					score += 2
+				else:
+					score -= 4
+
 		return score
 
 	#60.325
@@ -73,16 +83,13 @@ class PercolationPlayer:
 
 	#62.825
 	def heuristic_three(graph, v, player):
-		incident_edges = PercolationPlayer.IncidentEdges(graph, v)
-		neighbors = [e.a if e.a != v else e.b for e in incident_edges]
-		if not neighbors:
-			return -1
+		vertices = {vert for vert in graph.V}
+		vertices.remove(v)
 		score = 0
-		for v in neighbors:
-			if v.color != player:
-				score += 4
-		return score
+		for v in vertices:
+			score += len(PercolationPlayer.IncidentEdges(graph, v))
 
+		return score
 	#52.65
 	def heuristic_four(graph, v_in, player):
 		mine = [v for v in graph.V if v.color == player and v is not v_in]
@@ -104,16 +111,15 @@ class PercolationPlayer:
 	def count_nonzero(graph):
 		return sum(sum(col>0 for col in row) for row in graph)
 
-	def MiniMaxWIP(graph_dict, removed_dict, graph_values, current_matrix_dict, current_graph, player, vertices, heuristic, depth = 2, maximizing = True):
+	def MiniMaxWIP(graph_dict, removed_dict, graph_values, current_matrix_dict, current_graph, player, vertices, depth = 2, maximizing = True):
 		currents_indices = [v.index for v in vertices if v.color == player if v.index in list(current_matrix_dict.keys())]
-		value = PercolationPlayer.adjacency_graph_value_two(current_graph, currents_indices, current_matrix_dict, heuristic)
+		value = PercolationPlayer.adjacency_graph_value(current_graph, currents_indices, current_matrix_dict)
 		current_key = tuple(tuple(row) for row in current_graph)
 		graph_values[current_key] = value
 		
 		if depth == 0 or PercolationPlayer.count_nonzero(current_graph) == 0:
 			return value
-		
-		
+			
 		if maximizing:
 		# value = -1000000
 			for child, child_matrix_index_dict, removed in PercolationPlayer.AdjacencyNeighbors(current_graph, 
@@ -122,7 +128,7 @@ class PercolationPlayer:
 				graph_dict[child_key] = current_key
 				removed_dict[child_key] = removed
 				value = max(value, PercolationPlayer.MiniMaxWIP(graph_dict, removed_dict, graph_values, child_matrix_index_dict, 
-					child, abs(1-player), vertices, heuristic, depth-1, not maximizing))
+					child, abs(1-player), vertices, depth-1, not maximizing))
 			return value
 		else: #minimizing player
 		# value = 1000000
@@ -132,7 +138,7 @@ class PercolationPlayer:
 				graph_dict[child_key] = current_key
 				removed_dict[child_key] = removed
 				value = min(value, PercolationPlayer.MiniMaxWIP(graph_dict, removed_dict, graph_values, child_matrix_index_dict, 
-					child, abs(1-player), vertices, heuristic, depth-1, not maximizing))
+					child, abs(1-player), vertices, depth-1, not maximizing))
 			return value
 
 	def GraphToAdjacency(graph):
@@ -177,62 +183,60 @@ class PercolationPlayer:
 		return to_ret
 
 	def adjacency_color_heuristic(graph, v_index, my_indices, uncolored_indices):
-		neighbors = [i for i in np.flatnonzero(graph[v_index])]
-		score = 0
-		for v in neighbors:
-			if v in uncolored_indices:
-				score += 1
-			elif v in my_indices:
-				score -= 2
-			else:
-				score += 3
-		return score
-
-	#52.1
-	def adjacency_heuristic_one(graph, v_index, my_indices, vertex_to_index):
-		# neighbors = [i for i in graph[v_index]]
-		# print(v_index)
-		# print(vertex_to_index)
 		index_to_vertex = dict(zip(list(vertex_to_index.values()), list(vertex_to_index.keys())))
 		index_to_remove = vertex_to_index[v_index]
 		neighbor_indices = [i for i, e in enumerate(graph[index_to_remove]) if e != 0]
-		# print(neighbor_indices)
 
 		if len(neighbor_indices) == 0:
 			return -1
 
 		score = 0
-		# print(my_indices)
 		for v in neighbor_indices:
-			# print(v, my_indices)
-			# print(v in my_indices)
+			if index_to_vertex[v] in uncolored_indices:
+				score += 1
 			if index_to_vertex[v] in my_indices:
 				score -= 2
 			else:
 				score += 4
 		return score
-
-	def adjacency_heuristic_two(graph, v_index, my_indices, vertex_to_index):
+	#52.1
+	def adjacency_heuristic_one(graph, my_indices, vertex_to_index):
 		# neighbors = [i for i in graph[v_index]]
 		# print(v_index)
 		# print(vertex_to_index)
 		index_to_vertex = dict(zip(list(vertex_to_index.values()), list(vertex_to_index.keys())))
-		index_to_remove = vertex_to_index[v_index]
-		neighbor_indices = [i for i, e in enumerate(graph[index_to_remove]) if e != 0]
+		# index_to_remove = vertex_to_index[v_index]
+		# neighbor_indices = [i for i, e in enumerate(graph[index_to_remove]) if e != 0]
 		# print(neighbor_indices)
-
-		if len(neighbor_indices) == 0:
-			return -1
 
 		score = 0
 		# print(my_indices)
-		for v in neighbor_indices:
+		for v in vertex_to_index:
 			# print(v, my_indices)
 			# print(v in my_indices)
-			if index_to_vertex[v] in my_indices:
-				score -= 1
+			if v in my_indices:
+				score -= 2
 			else:
+				score += 4
+		return score
+
+	def adjacency_heuristic_two(graph, my_indices, vertex_to_index):
+		# neighbors = [i for i in graph[v_index]]
+		# print(v_index)
+		# print(vertex_to_index)
+		# print(my_indices)
+		index_to_vertex = dict(zip(list(vertex_to_index.values()), list(vertex_to_index.keys())))
+		
+
+		score = 0
+		# print(my_indices)
+		for v in vertex_to_index:
+			# print(v, my_indices)
+			# print(v in my_indices)
+			if v in my_indices:
 				score += 1
+			else:
+				score -= 2
 		return score
 
 	def adjacency_heuristic_three(graph, v_index, my_indices, vertex_to_index):
@@ -245,49 +249,42 @@ class PercolationPlayer:
 		# print(neighbor_indices)
 
 		if len(neighbor_indices) == 0:
-			return 0
+			return -1
 
-		score = 0
+		score = 1
 		# print(my_indices)
 		for v in neighbor_indices:
 			# print(v, my_indices)
 			# print(v in my_indices)
-			if index_to_vertex[v] in my_indices:
-				score -= 4
-			else:
-				score += 1
+			if index_to_vertex[v] not in my_indices:
+				score += 4 
 		return score
 
-	def adjacency_graph_value(graph, my_indices, vertex_to_index, heuristic):
-		# print(my_indices)
-		if PercolationPlayer.count_nonzero(graph) == 0:
-			return sys.maxsize
-		if len(my_indices) == 0:
-			return -sys.maxsize
-		potential = sorted([v for v in my_indices], 
-				key = lambda v:  heuristic(graph, v, my_indices, vertex_to_index))
-		# print(potential)
-		# if len(potential) == 0:
-		# 	print(my_indices, vertex_to_index)
-		return potential[-1]
-		# return sum(potential)
+	def adjacency_heuristic_five(my_indices, vertex_to_index):
+		# neighbors = [i for i in graph[v_index]]
+		# print(v_index)
+		# print(vertex_to_index)
+		# index_to_vertex = dict(zip(list(vertex_to_index.values()), list(vertex_to_index.keys())))
+		# index_to_remove = vertex_to_index[v_index]
+		# neighbor_indices = [i for i, e in enumerate(graph[index_to_remove]) if e != 0]
+		# print(neighbor_indices)
+		return  len(my_indices)- len(vertex_to_index)
 
-	def adjacency_graph_value_two(graph, my_indices, vertex_to_index, heuristic):
+	def adjacency_graph_value(graph, my_indices, vertex_to_index):
 		# print(my_indices)
 		if PercolationPlayer.count_nonzero(graph) == 0:
-			return sys.maxsize
+			return (sys.maxsize, sys.maxsize, sys.maxsize)
 		if len(my_indices) == 0:
-			return -sys.maxsize
-		num_vertices = len(vertex_to_index)
-		num_mine = len(my_indices)
-		potential = sorted([v for v in my_indices], 
-				key = lambda v:  heuristic(graph, v, my_indices, vertex_to_index))
+			return (-sys.maxsize, -sys.maxsize, -sys.maxsize)
+		
+		return (PercolationPlayer.adjacency_heuristic_five(my_indices, vertex_to_index), 
+				PercolationPlayer.adjacency_heuristic_two(graph, my_indices, vertex_to_index), 
+				PercolationPlayer.adjacency_heuristic_one(graph, my_indices, vertex_to_index))
 		# print(potential)
 		# if len(potential) == 0:
 		# 	print(my_indices, vertex_to_index)
 		# return potential[-1]
-		return sum(potential) + 4*(num_mine) - 2*(num_vertices - num_mine)
-
+		# return sum(potential)
 
 	def reverse_dict(dict_in):
 		to_ret = defaultdict(list)
@@ -309,46 +306,52 @@ class PercolationPlayer:
 		graph_path.append(temp)
 		# print(removed_dict[graph_dict[list(removed_dict.keys())[-1]]])
 		# if len(path) <= 0:
-		# 	print(graph_dict)
-		# 	print(removed_dict)
+		# print(graph_dict)
+		# print(removed_dict)
 		# print(path)
 		# print(removed_dict[path[-2]])
 		# print([removed_dict[i] for i in path])
+		if len(path) <= 1:
+			# print(graph_dict)
+			# print(graph_values)
+			# print(path)
+			return None
 		return path[1]
 		# return path, graph_path
 
 	def ChooseVertexToColor(graph, player):
-		# temp_graph = deepcopy(graph)
-		# print([v for v in graph.V if v.color == -1])
 		potential = sorted([v for v in graph.V if v.color == -1], 
-			key = lambda v: PercolationPlayer.color_heuristic(graph, v, player)) 
-		# print(potential)
-		# sorted([v for v in graph.V if v.color == -1])
+			key = lambda v: (PercolationPlayer.heuristic_one(graph, v, player), 
+				PercolationPlayer.heuristic_five(graph, v, player),
+				PercolationPlayer.color_heuristic(graph, v, player)
+				)) 
 		return potential[-1]
 
 	def ChooseVertexToRemove(graph, player):
 		potential = sorted([v for v in graph.V if v.color == player], 
-			key = lambda v: PercolationPlayer.heuristic_one(graph, v, player))
-		
-
+			key = lambda v: (PercolationPlayer.heuristic_one(graph, v, player), 
+				PercolationPlayer.heuristic_five(graph, v, player),
+				PercolationPlayer.heuristic_three(graph, v, player)
+				))
 		# print(potential)
 		# vertices = graph.V
 		# my_indices = [v.index for v in vertices if v.color == player]
 		# adjacency_graph, vertex_to_index = PercolationPlayer.GraphToAdjacency(graph)
 		# other =[PercolationPlayer.adjacency_remove_heuristic(adjacency_graph, v, my_indices, vertex_to_index) for v in my_indices]
 		# print([PercolationPlayer.heuristic_one(graph, v, player) for v in vertices if v.color == player], other)
-
 		return potential[-1]
 
+		#this code has yet to achive a better wr than the one above
 		try:
 			with PercolationPlayer.Timeout(seconds = 0.490):
-				if not graph.E:# or len(graph.V) > 30:
+				num_nodes = len(graph.V)
+				if not graph.E and num_nodes > 30:
 					# potential = sorted([v for v in graph.V if v.color == player], 
 					# 	key = lambda v: PercolationPlayer.heuristic_one(graph, v, player))
 					# print(potential)
 					return potential[-1]
 
-				num_nodes = len(graph.V)
+				
 				if num_nodes > 25:
 					depth = 2
 				elif num_nodes > 15:
@@ -365,8 +368,11 @@ class PercolationPlayer:
 				removed_dict = {graph_key:None}
 				graph_values = {graph_key: None}
 				PercolationPlayer.MiniMaxWIP(graph_dict, removed_dict, graph_values, vertex_to_index, adjacency_graph, player, 
-					vertices, PercolationPlayer.adjacency_heuristic_three, depth)
-				return PercolationPlayer.GetVertex(graph, PercolationPlayer.reconstruct(graph_dict, removed_dict, graph_values, depth))
+					vertices, depth)
+				vertex =  PercolationPlayer.reconstruct(graph_dict, removed_dict, graph_values, depth)
+				if not vertex:
+					return potential[-1]
+				return PercolationPlayer.GetVertex(graph, vertex)
 				
 		except TimeoutError as e:
 			# potential = sorted([v for v in graph.V if v.color == player], 
@@ -411,7 +417,7 @@ def main():
 	# for i in adjacency:
 	# 	print(i)
 	# print(vertex_to_index)
-	
+	# print(PercolationPlayer.ChooseVertexToColor(G, player))
 	vertices = G.V
 	my_indices = [v.index for v in vertices if v.color == player]
 	# print(my_indices, "\n")
@@ -442,16 +448,11 @@ def main():
 	# print("\nreversed dict")
 	# print_dict(reversed_graph)
 
-	# path, graph_path = PercolationPlayer.reconstruct(graph_dict, removed_dict)
+	# print()
+	# path = PercolationPlayer.reconstruct(graph_dict, removed_dict, graph_values, depth)
 	# print("\n", path)
 	# for i in graph_path:
-	# 	print(str(i) + " -- " + str(graph_values[i]))
-
-	print()
-	path, graph_path = PercolationPlayer.reconstructWIP(graph_dict, removed_dict, graph_values, depth)
-	print("\n", path)
-	for i in graph_path:
-		print(str(i) + " -- " + str(graph_values[i]) + " -- " + str(removed_dict[i]))
+	# 	print(str(i) + " -- " + str(graph_values[i]) + " -- " + str(removed_dict[i]))
 
 
 if __name__ == "__main__":

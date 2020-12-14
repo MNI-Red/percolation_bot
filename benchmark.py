@@ -209,7 +209,7 @@ if __name__ == "__main__":
     iters = 200
 
     my_wins = []
-    for i in range(5):
+    for i in range(1):
         start = time.time()
         wins = PlayBenchmark(p1, p2, iters)
         my_wins.append(1.0 * wins[0] / sum(wins))
